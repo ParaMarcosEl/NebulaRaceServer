@@ -1,7 +1,3 @@
-Here’s a clean, professional `README.md` you can drop into `NebulaRaceServer/`. It’s written to match the architecture you’ve built and keeps it clear for contributors or future employers reviewing the project.
-
----
-
 # NebulaRaceServer 🚀
 
 Authoritative multiplayer game server for **Nebula Grand Prix**.
@@ -278,12 +274,3 @@ server/
 
 Nebula Grand Prix
 A 3D planetary racing experience with procedural terrain and multiplayer competition.
-
----
-
-If you'd like, I can also:
-
-* Rewrite this as a **portfolio-optimized README**
-* Add architecture diagrams
-* Add a client integration section
-* Or convert this into something more “startup ready” for investors or collaborators
