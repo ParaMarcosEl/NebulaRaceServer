@@ -1,276 +1,158 @@
 # NebulaRaceServer 🚀
 
-Authoritative multiplayer game server for **Nebula Grand Prix**.
+Authoritative real-time multiplayer race server for **Nebula Grand Prix**, built with **Node.js**, **Express**, **WebSocket (`ws`)**, and a per-room **worker-thread physics simulation**.
 
-NebulaRaceServer is a real-time Node.js + WebSocket server that manages rooms, player state, and deterministic physics simulation using worker threads. It is designed to support multiple concurrent race rooms, each with its own isolated physics engine.
+## Overview
 
----
+NebulaRaceServer hosts race rooms and keeps simulation server-authoritative:
 
-## 🧠 Architecture Overview
+- Accepts WebSocket clients.
+- Assigns players to lobby rooms (up to 8 players each).
+- Manages race lifecycle phases (lobby → pregame → countdown → racing → finished).
+- Runs room physics in `workers/PhysicsWorker.js` and streams state updates back to room clients.
 
-The server is built around three core layers:
+## Tech Stack
 
-### 1️⃣ HTTP + WebSocket Layer (`server.js`)
+- Node.js `>=18`
+- Express (health/root endpoint)
+- ws (WebSocket server)
+- worker_threads (isolated per-room simulation)
+- uuid (room/player IDs)
 
-* Built with **Express**
-* Uses **ws** for WebSocket communication
-* Handles:
+## Repository Layout
 
-  * Player connections
-  * Room creation & management
-  * Race lifecycle (lobby → pregame → countdown → racing → finished)
-  * Broadcasting game state to clients
+- `server.js` — main HTTP/WebSocket process, room orchestration, race lifecycle, worker management.
+- `workers/PhysicsWorker.js` — fixed-step simulation loop and collision/movement integration.
+- `math.js` — local `Vector3`/`Quaternion` math primitives.
+- `fbm.js` — procedural terrain noise helpers.
+- `utils.js` — throttling and curve helper utilities.
+- `eslint.config.js` — lint config.
 
-### 2️⃣ Room System
-
-Each room contains:
-
-* Unique `roomId`
-* Player registry
-* Game phase
-* Timers (pregame & race countdown)
-* Dedicated physics worker
-* Track configuration (FBM params + curve points)
-
-Rooms are created dynamically and capped at:
-
-```js
-const MAX_PLAYERS_PER_ROOM = 8;
-```
-
-Each room has its own isolated physics simulation via a Worker thread.
-
----
-
-### 3️⃣ Physics Engine (`workers/PhysicsWorker.js`)
-
-Each room spawns a dedicated Worker thread responsible for:
-
-* Fixed-step simulation (60 Hz)
-* Player movement
-* Rotation physics
-* Thrust & braking model
-* OBB terrain collision detection
-* Signed distance field planet terrain
-* Deterministic state updates
-
-Physics runs independently of the WebSocket event loop.
-
-State updates are emitted back to the main thread:
-
-```js
-parentPort.postMessage({ type: 'stateUpdate', state: out });
-```
-
-The main server then broadcasts:
-
-```js
-broadcast(roomId, 'physics:update', { state });
-```
-
----
-
-## ⚙️ Features
-
-### Multiplayer
-
-* Automatic room creation
-* Max 8 players per room
-* Room-based broadcast isolation
-* Player ready state system
-* Race start countdown system
-* Finish detection
-
-### Physics
-
-* 60 Hz fixed timestep
-* Quaternion-based rotation
-* Signed speed-based thrust model
-* Forward vector–derived velocity reconstruction
-* Exponential velocity smoothing
-* Allocation-free inner loop
-* OBB vs procedural planet collision
-* FBM & Ridged terrain support
-
-### Performance Optimizations
-
-* Worker threads per room
-* No allocations inside physics loop
-* Vector & Quaternion object reuse
-* Log throttling utility
-* Minimal IPC payload size
-
----
-
-## 🛰️ Message Flow
-
-### Client → Server
-
-| Type       | Description               |
-| ---------- | ------------------------- |
-| `join`     | Join or create a room     |
-| `setReady` | Mark player ready         |
-| `input`    | Throttle & axis input     |
-| `config`   | Update physics parameters |
-| `finish`   | Player completed race     |
-| `removed`  | Remove player from room   |
-
----
-
-### Server → Client
-
-| Type                 | Description                 |
-| -------------------- | --------------------------- |
-| `connected`          | Initial handshake           |
-| `joined`             | Room assignment             |
-| `room:update`        | Player list + phase         |
-| `physics:update`     | Authoritative physics state |
-| `pregame:tick`       | Lobby countdown             |
-| `racecountdown:tick` | Race start countdown        |
-| `race:start`         | Race begins                 |
-| `race:end`           | Race completed              |
-| `player:finished`    | Player finished event       |
-| `server:log`         | Debug messages              |
-
----
-
-## 🏁 Game Phases
-
-```
-lobby
-  ↓
-pregame
-  ↓
-racecountdown
-  ↓
-racing
-  ↓
-finished
-```
-
-Phase changes are broadcast to all players in the room.
-
----
-
-## 🔧 Installation
+## Installation
 
 ```bash
 npm install
 ```
 
-Start the server:
+## Running
+
+Development (auto-reload):
 
 ```bash
-node server/server.js
+npm run dev
 ```
 
-Or with environment variables:
+Production:
 
 ```bash
-PORT=3030 ALLOW_FORCE_START=true node server/server.js
+npm start
 ```
 
----
+Or directly:
 
-## 🌍 Environment Variables
-
-| Variable            | Description                 |
-| ------------------- | --------------------------- |
-| `PORT`              | Server port (default: 3030) |
-| `ALLOW_FORCE_START` | Allows `startNow` override  |
-
----
-
-## 🧩 Room Lifecycle
-
-When the last player disconnects:
-
-1. Timers are cleared
-2. Physics worker is stopped
-3. Worker is terminated
-4. Room is deleted
-
-```js
-cleanupRoom(roomId, playerId);
+```bash
+PORT=3030 ALLOW_FORCE_START=true node server.js
 ```
 
-This ensures zero orphaned workers.
+## Environment Variables
 
----
+| Variable | Default | Description |
+|---|---:|---|
+| `PORT` | `3030` | HTTP/WebSocket bind port |
+| `ALLOW_FORCE_START` | `false` | Enables `startNow` client message override |
 
-## 🧪 Physics Model Summary
+## Runtime Model
 
-### Rotation
+### Main Process (`server.js`)
 
-* Pitch = local X axis
-* Roll = local forward axis
-* Angular velocity damping
-* Max angular clamp (`MAX_ANG`)
+Responsibilities:
 
-### Movement
+- Tracks all active rooms in memory.
+- Routes incoming messages (`join`, `setReady`, `input`, `config`, `finish`, `removed`).
+- Broadcasts room-scoped events.
+- Spawns one worker per room and forwards player input/config.
 
-* Signed speed via dot product
-* Forward vector derived from quaternion
-* Acceleration & braking model
-* Velocity reconstructed from scalar speed
-* Exponential smoothing toward target velocity
+### Worker Process (`workers/PhysicsWorker.js`)
 
-### Collision
+Responsibilities:
 
-* OBB corners sampled
-* Signed distance to procedural planet
-* Finite difference gradient normal
-* Penetration resolution
-* Restitution & slide factors
+- Maintains per-player authoritative state.
+- Runs fixed-step updates at ~60 Hz.
+- Integrates movement and angular motion.
+- Applies OBB-vs-terrain signed distance collision response.
+- Emits aggregate state snapshots (`stateUpdate`) to main process.
 
----
+## Room Lifecycle
 
-## 🧵 Worker Isolation Model
+1. First player joins → server finds lobby room or creates a new room.
+2. New room starts a physics worker.
+3. Players set ready state.
+4. Optional pregame countdown.
+5. Race countdown.
+6. Race starts (`race:start`).
+7. Players report finish (`finish`), server ends race when all present players finished.
+8. Room cleanup terminates worker and clears timers.
 
-Each room creates:
+## WebSocket Protocol
 
-```js
-new Worker('./workers/PhysicsWorker.js')
+### Client → Server
+
+| Type | Payload (summary) |
+|---|---|
+| `join` | `{ name, fbmParams, curvePoints }` |
+| `setReady` | `{ ready }` |
+| `input` | `{ throttle, inputAxis: { x, y } }` |
+| `config` | physics tuning fields (`playerSpeed`, `acceleration`, etc.) |
+| `finish` | none/optional |
+| `removed` | none/optional |
+| `startNow` | none (works only when `ALLOW_FORCE_START=true`) |
+
+### Server → Client
+
+| Type | Payload (summary) |
+|---|---|
+| `connected` | `{ playerId }` |
+| `joined` | `{ playerId, roomId, fbmParams, curvePoints }` |
+| `room:update` | `{ phase, players[] }` |
+| `physics:update` | `{ state }` |
+| `pregame:tick` | `{ seconds }` |
+| `racecountdown:tick` | `{ seconds }` |
+| `race:start` | `{ startedAt }` |
+| `race:end` | `{}` |
+| `player:finished` | `{ id, finishedAt }` |
+| `server:log` | `{ message }` |
+
+## Game Phases
+
+```text
+lobby -> pregame -> racecountdown -> racing -> finished
 ```
 
-This ensures:
+## Operational Notes
 
-* No shared physics state
-* No cross-room bleed
-* Scalable architecture
-* CPU core utilization
+- Room/player state is currently in-memory (no persistence).
+- Server rebroadcasts client `input` messages to peers.
+- Physics snapshots are sent continuously from worker to room clients.
+- Cleanup currently removes room state and terminates the worker when invoked.
 
----
+## Suggested Improvement Areas
 
-## 🛠️ Future Improvements
+1. Add message schema validation and stricter payload guards (especially for `input`/`config`).
+2. Add heartbeat/ping timeout logic to detect half-open WebSockets.
+3. Add proper race-start automation when all lobby players are ready (currently commented out).
+4. Harden worker readiness flow so players are never posted before worker init completion.
+5. Add structured logging with levels and room/player correlation IDs.
+6. Add test coverage (unit tests for math/utility code, integration tests for WS protocol).
+7. Add metrics/observability (tick duration, room count, worker lifecycle events).
+8. Add memory/backpressure protections for high-frequency broadcasts.
 
-* Matchmaking system
-* Room persistence
-* Spectator mode
-* Replay system
-* Lag compensation
-* Snapshot delta compression
-* Horizontal scaling via clustering
+## Development Quality Checklist
 
----
+- Keep worker loop allocation-light.
+- Avoid blocking code in WebSocket handlers.
+- Ensure all room timers/workers are terminated on room teardown.
+- Keep protocol backward-compatible when adding message types.
 
-## 📦 Project Structure
+## License
 
-```
-server/
-│
-├── server.js
-│
-├── workers/
-│   └── PhysicsWorker.js
-│
-├── fbm.js
-└── math.js
-```
-
----
-
-## 🎮 Designed For
-
-Nebula Grand Prix
-A 3D planetary racing experience with procedural terrain and multiplayer competition.
+MIT
