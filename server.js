@@ -50,7 +50,6 @@ const state = {
 };
 
 function log(msg, roomId = null) {
-  console.log(msg);
   const data = JSON.stringify({ type: 'server:log', payload: { message: msg } });
   wss.clients.forEach(c => {
     if (c.readyState === c.OPEN && (!roomId || c.roomId === roomId)) {
@@ -333,7 +332,6 @@ wss.on('connection', (ws) => {
 
     if (type === 'join') {
       const { name, fbmParams, curvePoints } = payload || {};
-      log('Joined with Payload: ' + JSON.stringify({...payload, curvePoints: []}));
 
       // ✅ Pass player info so player is added when room initializes
       const room = getOrCreateOpenRoom({ playerId, name, fbmParams, curvePoints, ws });
