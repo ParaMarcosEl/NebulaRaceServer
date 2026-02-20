@@ -171,7 +171,7 @@ worker.once('message', (msg) => {
     if (state.rooms[newRoomId]) state.rooms[newRoomId].physicsWorker = null;
   });
 
-  // ✅ Add player immediately upon room initialization
+  // Track initial player in room state
   if (playerId) {
     newRoom.players[playerId] = { 
       id: playerId,
@@ -182,21 +182,6 @@ worker.once('message', (msg) => {
       score: 0,
       outOfBoundsTime: 0
     };
-
-    if (worker) {
-      worker.postMessage({
-        type: 'addPlayer',
-        playerId,
-        position: [0, 0, 0],
-        acceleration: 1.0,
-        pitchVelocity: 1.0,
-        rollVelocity: 1.0,
-        damping: 0.998,
-        playerSpeed: 1.0,
-        fbmParams: fbmParams || {},
-        curvePoints: curvePoints || [],
-      });
-    }
   }
 
   state.rooms[newRoomId] = newRoom;
