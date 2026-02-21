@@ -393,7 +393,6 @@ function updatePhysics() {
   for (const [, state] of players) {
     // log(null, 'Updating player physics for state: ' +JSON.stringify(state));
     updatePlayerPhysics(state);
-    log(null, '\nUpdated player physics to \nstate: ' +JSON.stringify(state, null, 2));
   }
 
   // produce aggregated state object (small allocations of arrays only for IPC — unavoidable here)
@@ -423,7 +422,6 @@ function startFixedUpdateLoop() {
 }
 
 function init(data) {
-  log(null, `init called with data: ${JSON.stringify({...data, curvePoints: ['...']}, null, 2)}`);
   if (data.planetSize !== undefined) planetRadius = data.planetSize;
   if (data.fbmParams) fbmParams = data.fbmParams;
   if (data.curvePoints) {
@@ -435,6 +433,8 @@ function init(data) {
       getStartPoseFromCurve(curvePoints, i / Math.max(1, numPositions - 1))
     );
 
+
+    console.log('Precomputed start positions:', startPositions);
     nextStartIndex = 0;
   }
   if (data.restitution) restitution = data.restitution;
@@ -444,7 +444,6 @@ function init(data) {
 }
 
 function handleConfig(data) {
-  log(null, `handleConfig called with data: ${JSON.stringify({...data, curvePoints: ['...']}, null, 2)}`);
   const playerId = data.playerId;
   const state = players.get(playerId);
   if (!state) return;
