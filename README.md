@@ -142,7 +142,7 @@ lobby -> pregame -> racecountdown -> racing -> finished
 3. Add proper race-start automation when all lobby players are ready (currently commented out).
 4. Harden worker readiness flow so players are never posted before worker init completion.
 5. Add structured logging with levels and room/player correlation IDs.
-6. Add test coverage (unit tests for math/utility code, integration tests for WS protocol).
+6. Add test coverage (unit tests for math/utility code).
 7. Add metrics/observability (tick duration, room count, worker lifecycle events).
 8. Add memory/backpressure protections for high-frequency broadcasts.
 
