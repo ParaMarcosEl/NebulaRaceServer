@@ -5,6 +5,7 @@ import { WebSocketServer } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import { Worker } from 'worker_threads';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Log Throttle
 export function createLogThrottle(limitPerSecond = 2) {
@@ -50,6 +51,7 @@ const state = {
 };
 
 function log(msg, roomId = null) {
+  console.log(msg);
   const data = JSON.stringify({ type: 'server:log', payload: { message: msg } });
   wss.clients.forEach(c => {
     if (c.readyState === c.OPEN && (!roomId || c.roomId === roomId)) {
@@ -475,7 +477,19 @@ if (type === 'finish') {
 
 app.get('/', (req, res) => res.send('Game server live'));
 
-server.listen(PORT, () => {
-  console.log(`Server listening on ${PORT}`)
-  log(`Server listening`);
-});
+export function startServer(port = PORT) {
+  server.listen(port, () => {
+    console.log(`Server listening on ${port}`);
+    log(`Server listening`);
+  });
+  return server;
+}
+
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  startServer();
+}
+
+export { app, server, wss, state };

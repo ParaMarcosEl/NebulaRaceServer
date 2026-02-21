@@ -433,6 +433,8 @@ function init(data) {
       getStartPoseFromCurve(curvePoints, i / Math.max(1, numPositions - 1))
     );
 
+
+    console.log('Precomputed start positions:', startPositions);
     nextStartIndex = 0;
   }
   if (data.restitution) restitution = data.restitution;
